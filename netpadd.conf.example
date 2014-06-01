@@ -1,0 +1,86 @@
+# netpad daemon configuration example
+# for version 1.0.0
+
+# -----------------------------
+# logging configuration section
+# -----------------------------
+[logging]
+
+# logging level (valid values are DEBUG, INFO, WARNING, ERROR, CRITICAL)
+# lower the level is, more information is available on application output
+level: DEBUG
+
+# ------------------------------
+# database configuration section
+# ------------------------------
+[database]
+
+# driver (currently only pymongo is supported)
+driver: pymongo
+
+# database host (hostname or ip address of remote or local database server)
+host: 127.0.0.1
+
+# database port (port used by database system to communicate with clients)
+port: 27017
+
+# MongoDB target schema (database)
+mongodb-schema: netpad
+
+# MongoDB authentication required (set to true, if your MongoDB server requires authentication)
+mongodb-auth: true
+
+# MongoDB authentication username (uncomment and set value if authentication is needed)
+#mongodb-auth-user:
+
+# MongoDB authentication password (uncomment and set value if authentication is needed)
+#mongodb-auth-password:
+
+# -----------------------------
+# monitor configuration section
+# -----------------------------
+[monitor]
+
+# number of polling threads to poll for device data simultaneously
+threads: 5
+
+# maximum size of polling request queue (higher value may be required for more devices)
+queue-max-size: 128
+
+# default polling interval for device (if device does not have this value configured)
+default-poll-interval: 60000
+
+# path to probes (do not modify unless you wan to use customized probes)
+probe-path: ctrdn/netpadd/probe
+
+# default probes for devices, which does not have this values configured
+default-probes: ping, snmp_info
+
+# --------------------------------
+# ping probe configuration section
+# --------------------------------
+[probe_ping]
+
+# default number of pings to send (and received)
+default-count: 4
+
+# default ping timeout (in seconds)
+default-timeout: 2
+
+# default target address(es) to target on device
+# valid values: all, [0, ..., n]
+default-address: all
+
+# --------------------------------
+# snmp info probe configuration section
+# --------------------------------
+[probe_snmp_info]
+
+# default udp port for snmp protocol
+default-snmp-port: 161
+
+# default snmp community
+default-snmp-community: netpad
+
+# default snmp protocol version to use
+default-snmp-version: 2c
