@@ -9,7 +9,7 @@ Netpad daemon requires the following external python modules:
 
 ###Configuring netpadd
 In order to configure netpadd you need to do the following:
-* create a copy (or rename) file __netpadd.conf.example__ to __netpadd.conf__ and set attributes so it fit your confiuration
+* create a copy (or rename) file __netpadd.conf.example__ to __netpadd.conf__ and set attributes so it fits your confiuration
 
 ###Adding devices to monitor
 You need to manually create device entries for now (no gui or cli available),
