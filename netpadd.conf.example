@@ -28,7 +28,7 @@ port: 27017
 mongodb-schema: netpad
 
 # MongoDB authentication required (set to true, if your MongoDB server requires authentication)
-mongodb-auth: true
+mongodb-auth: false
 
 # MongoDB authentication username (uncomment and set value if authentication is needed)
 #mongodb-auth-user:
