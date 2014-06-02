@@ -105,5 +105,5 @@ def get_probe_description():
     return "ICMP Ping Probe"
 
 
-def get_class_version():
+def get_probe_version():
     return "1.0.0"

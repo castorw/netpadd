@@ -76,7 +76,7 @@ class NetPadDaemon():
                 self._logger.debug("importing probe " + probe_class_name)
         for module in probe_modules:
             self._logger.info("imported probe " + module.get_probe_name() +
-                              " (" + module.get_probe_description() + ") v" + module.get_class_version())
+                              " (" + module.get_probe_description() + ") v" + module.get_probe_version())
 
         # create polling queue
         poll_queue = Queue(self._config.getint("monitor", "queue-max-size"))
