@@ -76,8 +76,8 @@ class DevicePoller(threading.Thread):
 
     def _poll_device(self, device):
         device_time_start = time.time()
-        probe_stats_list = []
-        probe_result_list = []
+        probe_stats_dict = {}
+        probe_result_dict = {}
         for probe_config in device["MonitorConfiguration"]["Probes"]:
             probe_module = None
             for module in self._probes:
@@ -96,23 +96,23 @@ class DevicePoller(threading.Thread):
                     result = probe.poll_device(device, probe_config)
                     probe_result = dict(DeviceId=device["_id"], PollTimestamp=poll_start_time, Result=result)
                     self._db.np.monitor.result[probe_module.get_probe_name()].insert(probe_result)
-                    probe_result_list.append(dict(Probe=probe_module.get_probe_name(), Result=result))
+                    probe_result_dict[probe_module.get_probe_name()] = result
                 except DevicePollerException as exception:
                     poll_success = False
                     poll_error = exception.message
                 poll_end_time = time.time()
                 probe_stats = dict(Probe=probe_module.get_probe_name(), Time=poll_end_time-poll_start_time,
                                    Success=poll_success, Error=poll_error)
-                probe_stats_list.append(probe_stats)
+                probe_stats_dict[probe_module.get_probe_name()] = probe_stats
         device_time_end = time.time()
         device_stats = dict(DeviceId=device["_id"], PollerThreadId=self._thread_id, PollTimestamp=device_time_start,
-                            Time=device_time_end-device_time_start, Results=probe_stats_list)
+                            Time=device_time_end-device_time_start, Results=probe_stats_dict)
         self._db.np.monitor.poller_stats.insert(device_stats)
         self._db.np.monitor.result_latest.update(dict(DeviceId=device["_id"]),
                                                  {"$set": dict(DeviceId=device["_id"],
                                                                PollTimestamp=device_time_start,
                                                                Time=device_time_end-device_time_start,
-                                                               Results=probe_result_list)}, upsert=True)
+                                                               Results=probe_result_dict)}, upsert=True)
 
 
 class PollingPlanner(threading.Thread):
