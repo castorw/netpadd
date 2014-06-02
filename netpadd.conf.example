@@ -84,3 +84,8 @@ default-snmp-community: netpad
 
 # default snmp protocol version to use
 default-snmp-version: 2c
+
+# default snmp info dictionary (list of names and mapped oids acquired from devices by default)
+default-snmp-info-dictionary: { "sysDescr": "1.3.6.1.2.1.1.1.0", "sysContact": "1.3.6.1.2.1.1.4.0",
+                                "sysLocation": "1.3.6.1.2.1.1.6.0", "sysName": "1.3.6.1.2.1.1.5.0",
+                                "sysUptime": "1.3.6.1.2.1.1.3.0" }
