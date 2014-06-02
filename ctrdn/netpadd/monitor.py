@@ -184,9 +184,9 @@ class PollingPlanner(threading.Thread):
                 device = self.check_device_monitor_config(device)
                 planner_record = self._db.np.monitor.planner.find_one({"DeviceId": device["_id"]})
                 if not planner_record:
-                    self._db.np.monitor.planner.insert(
+                    record_id = self._db.np.monitor.planner.insert(
                         dict(DeviceId=device["_id"], LastEnqueueTimestamp=time.time() - 3600))
-                    planner_record = self._db.np.monitor.planner.find_one(dict(DeviceId=device["_id"]))
+                    planner_record = self._db.np.monitor.planner.find_one(dict(_id=record_id))
 
                 delta = (time.time() - planner_record["LastEnqueueTimestamp"]) * 1000
                 if delta >= device["MonitorConfiguration"]["PollInterval"]:
