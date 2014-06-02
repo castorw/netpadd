@@ -27,6 +27,10 @@ class DeviceProbe:
     def poll_device(self, device, probe_name, probe_config):
         return None
 
+    @abstractmethod
+    def validate_configuration(self, device, probe_config):
+        return True
+
 
 class DevicePollerException(Exception):
     pass
@@ -93,8 +97,18 @@ class DevicePoller(threading.Thread):
                 poll_success = True
                 poll_error = None
                 try:
-                    probe = probe_module.Probe(self._config, self._db)
-                    result = probe.poll_device(device, probe_name, probe_config)
+                    probe_instance = probe_module.Probe(self._config, self._db)
+                    """:type : DeviceProbe"""
+
+                    check_result = probe_instance.validate_configuration(device, probe_config)
+                    if not check_result is None:
+                        probe_config = check_result
+                        device["MonitorConfiguration"]["Probes"][probe_name] = probe_config
+                        self._db.np.core.device.update(
+                            dict(_id=device["_id"]),
+                            {"$set": dict(MonitorConfiguration=device["MonitorConfiguration"])})
+
+                    result = probe_instance.poll_device(device, probe_name, probe_config)
                     probe_result = dict(DeviceId=device["_id"], PollId=poll_record_id, Result=result)
                     self._db.np.monitor.result[probe_module.get_probe_name()].insert(probe_result)
                     probe_result_dict[probe_module.get_probe_name()] = result

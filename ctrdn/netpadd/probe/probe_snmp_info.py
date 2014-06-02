@@ -26,7 +26,6 @@ class Probe(DeviceProbe):
         self._default_snmp_info_dict = json.loads(self._config.get("probe_snmp_info", "default-snmp-info-dictionary"))
 
     def poll_device(self, device, probe_name, probe_config):
-        probe_config = self._check_configuration(device, probe_name, probe_config)
         probe_successful = False
         probe_address_index = 0
         if len(device["IpAddress"]) < 1:
@@ -92,7 +91,7 @@ class Probe(DeviceProbe):
                                (end_time-start_time))
         return result_dict
 
-    def _check_configuration(self, device, probe_name, probe_config):
+    def validate_configuration(self, device, probe_config):
         update_config = False
         if not "SnmpVersion" in probe_config:
             self._logger.warn("no SnmpVersion in probe configuration for device %s", device["_id"])
@@ -112,13 +111,8 @@ class Probe(DeviceProbe):
             update_config = True
 
         if update_config is True:
-            monitor_config = device["MonitorConfiguration"]
-            for probe_index, probe in enumerate(monitor_config["Probes"]):
-                if probe_index == probe_name:
-                    monitor_config["Probes"][probe_index] = probe_config
-                    break
-            self._db.np.core.device.update(dict(_id=device["_id"]), {"$set": dict(MonitorConfiguration=monitor_config)})
             self._logger.warning("fixed snmp_info probe configuration for device %s", device["_id"])
+            return probe_config
 
         return probe_config
 

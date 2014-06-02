@@ -21,7 +21,6 @@ class Probe(DeviceProbe):
         self._default_address = self._config.get("probe_ping", "default-address")
 
     def poll_device(self, device, probe_name, probe_config):
-        probe_config = self._check_configuration(device, probe_name, probe_config)
         ip_result_list = []
         if probe_config["PingAddress"] == "all":
             for address_index, address in enumerate(device["IpAddress"]):
@@ -70,7 +69,7 @@ class Probe(DeviceProbe):
         return dict(Time=end_time-start_time, Pings=result_list, Max=pt_max,
                     Min=pt_min, Average=pt_avg)
 
-    def _check_configuration(self, device, probe_name, probe_config):
+    def validate_configuration(self, device, probe_config):
         update_config = False
         if not "PingCount" in probe_config:
             self._logger.warn("no PingCount in ping probe configuration for device %s", device["_id"])
@@ -86,15 +85,10 @@ class Probe(DeviceProbe):
             update_config = True
 
         if update_config is True:
-            monitor_config = device["MonitorConfiguration"]
-            for probe_index, probe in enumerate(monitor_config["Probes"]):
-                if probe_index == probe_name:
-                    monitor_config["Probes"][probe_index] = probe_config
-                    break
-            self._db.np.core.device.update(dict(_id=device["_id"]), {"$set": dict(MonitorConfiguration=monitor_config)})
             self._logger.warn("fixed ping probe configuration for device %s", device["_id"])
+            return probe_config
 
-        return probe_config
+        return True
 
 
 def get_probe_name():
