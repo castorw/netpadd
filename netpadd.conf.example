@@ -89,3 +89,9 @@ default-snmp-version: 2c
 default-snmp-info-dictionary: { "sysDescr": "1.3.6.1.2.1.1.1.0", "sysContact": "1.3.6.1.2.1.1.4.0",
                                 "sysLocation": "1.3.6.1.2.1.1.6.0", "sysName": "1.3.6.1.2.1.1.5.0",
                                 "sysUptime": "1.3.6.1.2.1.1.3.0" }
+
+# default snmp table dictionary (resolves interface table with some basic information)
+default-snmp-table-dictionary: { "ifTable": { "BaseOid": "1.3.6.1.2.1.2.2.1", "Columns": {
+                                              "ifIndex": 1, "ifDescr": 2, "ifType": 3, "ifMtu": 4, "ifSpeed": 5,
+                                              "ifPhysAddress": 6, "ifAdminStatus": 7, "ifOperStatus": 8,
+                                              "ifLastChange": 9, "ifInOctets": 10, "ifOutOctets": 16 } } }
