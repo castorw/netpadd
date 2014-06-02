@@ -65,8 +65,9 @@ class DevicePoller(threading.Thread):
         got_task = False
         while True:
             while not self._poll_queue.empty():
-                device = self._poll_queue.get()
+                device_id = self._poll_queue.get()
                 got_task = True
+                device = self._db.np.core.device.find_one(dict(_id=device_id))
                 self._poll_device(device)
                 self._poll_queue.task_done()
             if got_task:
@@ -156,7 +157,7 @@ class PollingPlanner(threading.Thread):
         update_monitor_config = False
         if not "MonitorConfiguration" in device:
             self._logger.warn("no monitor configuration for %s", device["_id"])
-            monitor_config = dict(PollInterval=self._default_poll_interval)
+            monitor_config = dict(PollInterval=self._default_poll_interval, Probes=self._default_probes)
             update_monitor_config = True
         else:
             monitor_config = device["MonitorConfiguration"]
@@ -193,7 +194,7 @@ class PollingPlanner(threading.Thread):
                     self._logger.debug("enqueuing device %s(%s), delta=%dms",
                                        device['_id'],
                                        device['Hostname'], delta)
-                    self._poll_queue.put(device)
+                    self._poll_queue.put(device["_id"])
                     self._db.np.monitor.planner.update(dict(DeviceId=device["_id"]),
                                                        {"$set": {"LastEnqueueTimestamp": time.time()}})
 
