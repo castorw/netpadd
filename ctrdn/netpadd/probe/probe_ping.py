@@ -24,27 +24,33 @@ class Probe(DeviceProbe):
         ip_result_list = []
         if probe_config["PingAddress"] == "all":
             for address_index, address in enumerate(device["IpAddress"]):
-                ip_result_list.append(dict(Address=address_index,
-                                           Result=self._perform_ping(address, device, probe_config)))
+                ip_result_list.append(self._perform_ping(address, device, probe_config))
         elif type(probe_config["PingAddress"]) == list:
-                for address_index, address in enumerate(probe_config["PingAddress"]):
-                    address = device["IpAddress"][address_index]
-                    ip_result_list.append(dict(Address=address_index,
-                                          Result=self._perform_ping(address, device, probe_config)))
+            for address_index, address in enumerate(probe_config["PingAddress"]):
+                address = device["IpAddress"][address_index]
+                ip_result_list.append(self._perform_ping(address, device, probe_config))
         else:
             self._logger.error("invalid configuration for device %s", device["_id"])
+
         return dict(PerAddress=ip_result_list)
 
     def _perform_ping(self, address, device, probe_config):
         if address["Version"] == 4:
-            return self._perform_ipv4_ping(address["Address"], probe_config["PingCount"], probe_config["PingTimeout"])
+            result = self._perform_ipv4_ping(address["Address"], probe_config["PingCount"], probe_config["PingTimeout"])
         else:
             self._logger.error("unsupported address version %d for ping probe, device=%s", address["Version"],
                                device["_id"])
+            result = dict(Status=0, Error=dict(Id="UNSUPPORTED_ADDRESS_VERSION",
+                                               Message="Unsupported address version " + str(address["Version"])))
+
+        result["Address"] = address
+        return result
 
     def _perform_ipv4_ping(self, host, count, timeout):
         result_list = []
         start_time = time.time()
+
+        # perform pings
         for i in range(0, count):
             result = ping.do_one(host, timeout)
             result_list.append(result)
@@ -64,10 +70,14 @@ class Probe(DeviceProbe):
             pt_avg_count += 1
         pt_avg = 0 if pt_avg_count == 0 else pt_avg_sum/pt_avg_count
 
+        ping_result = dict(ExecutionTime=end_time-start_time, PingTimes=result_list,
+                           Max=pt_max, Min=pt_min, Average=pt_avg)
         self._logger.debug("processed pings for address=%s, count=%d/%d, time=%f",
                            host, pt_avg_count, count, end_time-start_time)
-        return dict(Time=end_time-start_time, Pings=result_list, Max=pt_max,
-                    Min=pt_min, Average=pt_avg)
+        if pt_avg_count < 1:
+            return dict(Status=0, Error=dict(Id="NO_RESPONSES_RECEIVED", Message="no responses received"))
+        else:
+            return dict(Status=1, Result=ping_result)
 
     def validate_configuration(self, device, probe_config):
         update_config = False
@@ -88,7 +98,7 @@ class Probe(DeviceProbe):
             self._logger.warn("fixed ping probe configuration for device %s", device["_id"])
             return probe_config
 
-        return True
+        return None
 
 
 def get_probe_name():

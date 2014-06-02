@@ -1,7 +1,7 @@
 import json
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 import time
-from ctrdn.netpadd.monitor import DeviceProbe, DevicePollerException
+from ctrdn.netpadd.monitor import DeviceProbe
 
 __author__ = 'Lubomir Kaplan <castor@castor.sk>'
 
@@ -29,7 +29,8 @@ class Probe(DeviceProbe):
         probe_successful = False
         probe_address_index = 0
         if len(device["IpAddress"]) < 1:
-            raise DevicePollerException("no internet protocol address for device %s", device["_id"])
+            return dict(Status=0, Error=dict(Id="NO_IP_ADDRESSES",
+                                             Message="no internet protocol addresses defined for device"))
 
         snmp_data = None
         start_time = time.time()
@@ -79,13 +80,13 @@ class Probe(DeviceProbe):
             probe_address_index += 1
         end_time = time.time()
 
-        result_dict = dict(Time=end_time-start_time)
+        result_dict = {}
         if snmp_data is None:
-            result_dict["Success"] = False
-            result_dict["LastError"] = str(snmp_error)
+            result_dict["Status"] = 0
+            result_dict["Error"] = dict(Id="SNMP_ERROR", Message=str(snmp_error))
             self._logger.warn("failed to get snmp info, device=%s, time=%f", device["_id"], (end_time-start_time))
         else:
-            result_dict["Success"] = True
+            result_dict["Status"] = 1
             result_dict["SnmpData"] = snmp_data
             self._logger.debug("processed snmp info, device=%s, count=%d, time=%f", device["_id"], len(snmp_data),
                                (end_time-start_time))
@@ -114,7 +115,7 @@ class Probe(DeviceProbe):
             self._logger.warning("fixed snmp_info probe configuration for device %s", device["_id"])
             return probe_config
 
-        return probe_config
+        return None
 
 
 def get_probe_name():

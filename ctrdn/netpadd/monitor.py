@@ -31,11 +31,6 @@ class DeviceProbe:
     def validate_configuration(self, device, probe_config):
         return True
 
-
-class DevicePollerException(Exception):
-    pass
-
-
 class DevicePoller(threading.Thread):
     _logger = None
     _thread_id = None
@@ -79,10 +74,10 @@ class DevicePoller(threading.Thread):
             time.sleep(1)
 
     def _poll_device(self, device):
+        self._logger.info("polling device %s", device["_id"])
         device_time_start = time.time()
         probe_stats_dict = {}
         probe_result_dict = {}
-        poll_record_id = self._db.np.monitor.poll.insert({})
         for probe_name, probe_config in device["MonitorConfiguration"]["Probes"].iteritems():
             probe_module = None
             for module in self._probes:
@@ -93,41 +88,33 @@ class DevicePoller(threading.Thread):
             if not probe_module:
                 self._logger.error("unknown probe %s", probe_name)
             else:
+                # start polling with probe
                 poll_start_time = time.time()
-                poll_success = True
-                poll_error = None
-                try:
-                    probe_instance = probe_module.Probe(self._config, self._db)
-                    """:type : DeviceProbe"""
+                probe_instance = probe_module.Probe(self._config, self._db)
+                """:type : DeviceProbe"""
 
-                    check_result = probe_instance.validate_configuration(device, probe_config)
-                    if not check_result is None:
-                        probe_config = check_result
-                        device["MonitorConfiguration"]["Probes"][probe_name] = probe_config
-                        self._db.np.core.device.update(
-                            dict(_id=device["_id"]),
-                            {"$set": dict(MonitorConfiguration=device["MonitorConfiguration"])})
+                # validate configuration for specific probe
+                check_result = probe_instance.validate_configuration(device, probe_config)
+                if not check_result is None:
+                    probe_config = check_result
+                    device["MonitorConfiguration"]["Probes"][probe_name] = probe_config
+                    self._db.np.core.device.update(
+                        dict(_id=device["_id"]),
+                        {"$set": dict(MonitorConfiguration=device["MonitorConfiguration"])})
 
-                    result = probe_instance.poll_device(device, probe_name, probe_config)
-                    probe_result = dict(DeviceId=device["_id"], PollId=poll_record_id, Result=result)
-                    self._db.np.monitor.result[probe_module.get_probe_name()].insert(probe_result)
-                    probe_result_dict[probe_module.get_probe_name()] = result
-                except DevicePollerException as exception:
-                    poll_success = False
-                    poll_error = exception.message
+                # perform probing itself
+                result = probe_instance.poll_device(device, probe_name, probe_config)
+                probe_result_dict[probe_name] = result
                 poll_end_time = time.time()
-                probe_stats = dict(Probe=probe_module.get_probe_name(), Time=poll_end_time - poll_start_time,
-                                   Success=poll_success, Error=poll_error)
-                probe_stats_dict[probe_module.get_probe_name()] = probe_stats
+
+                probe_stats = dict(Probe=probe_name, ExecutionTime=poll_end_time - poll_start_time, Result=result)
+                probe_stats_dict[probe_name] = probe_stats
+
         device_time_end = time.time()
-        device_stats = dict(DeviceId=device["_id"], PollerThreadId=self._thread_id, PollTimestamp=device_time_start,
-                            Time=device_time_end - device_time_start, Results=probe_stats_dict)
-        self._db.np.monitor.poll.update(dict(_id=poll_record_id), {"$set": device_stats})
-        self._db.np.monitor.result_last.update(dict(DeviceId=device["_id"]),
-                                               {"$set": dict(DeviceId=device["_id"],
-                                                             PollId=poll_record_id,
-                                                             Time=device_time_end - device_time_start,
-                                                             Results=probe_result_dict)}, upsert=True)
+        device_poll_result = dict(DeviceId=device["_id"], PollerThreadId=self._thread_id,
+                                  PollTimestamp=device_time_start, ExecutionTime=device_time_end - device_time_start,
+                                  ProbeResult=probe_stats_dict)
+        self._db.np.monitor.poll.insert(device_poll_result)
 
 
 class PollingPlanner(threading.Thread):
