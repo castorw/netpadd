@@ -1,4 +1,4 @@
-import abc
+from abc import abstractmethod
 import logging
 import threading
 from ConfigParser import ConfigParser
@@ -23,7 +23,7 @@ class DeviceProbe:
         self._config = config
         """:type : ConfigParser"""
 
-    @abc.abstractmethod
+    @abstractmethod
     def poll_device(self, device, probe_name, probe_config):
         return None
 
