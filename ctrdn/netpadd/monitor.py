@@ -24,7 +24,7 @@ class DeviceProbe:
         """:type : ConfigParser"""
 
     @abc.abstractmethod
-    def poll_device(self, device, probe_config):
+    def poll_device(self, device, probe_name, probe_config):
         return None
 
 
@@ -78,48 +78,49 @@ class DevicePoller(threading.Thread):
         device_time_start = time.time()
         probe_stats_dict = {}
         probe_result_dict = {}
-        for probe_config in device["MonitorConfiguration"]["Probes"]:
+        poll_record_id = self._db.np.monitor.poll.insert({})
+        for probe_name, probe_config in device["MonitorConfiguration"]["Probes"].iteritems():
             probe_module = None
             for module in self._probes:
-                if module.get_probe_name() == probe_config["Probe"]:
+                if module.get_probe_name() == probe_name:
                     probe_module = module
                     break
 
             if not probe_module:
-                self._logger.error("unknown probe %s", probe_config["Probe"])
+                self._logger.error("unknown probe %s", probe_name)
             else:
                 poll_start_time = time.time()
                 poll_success = True
                 poll_error = None
                 try:
                     probe = probe_module.Probe(self._config, self._db)
-                    result = probe.poll_device(device, probe_config)
-                    probe_result = dict(DeviceId=device["_id"], PollTimestamp=poll_start_time, Result=result)
+                    result = probe.poll_device(device, probe_name, probe_config)
+                    probe_result = dict(DeviceId=device["_id"], PollId=poll_record_id, Result=result)
                     self._db.np.monitor.result[probe_module.get_probe_name()].insert(probe_result)
                     probe_result_dict[probe_module.get_probe_name()] = result
                 except DevicePollerException as exception:
                     poll_success = False
                     poll_error = exception.message
                 poll_end_time = time.time()
-                probe_stats = dict(Probe=probe_module.get_probe_name(), Time=poll_end_time-poll_start_time,
+                probe_stats = dict(Probe=probe_module.get_probe_name(), Time=poll_end_time - poll_start_time,
                                    Success=poll_success, Error=poll_error)
                 probe_stats_dict[probe_module.get_probe_name()] = probe_stats
         device_time_end = time.time()
         device_stats = dict(DeviceId=device["_id"], PollerThreadId=self._thread_id, PollTimestamp=device_time_start,
-                            Time=device_time_end-device_time_start, Results=probe_stats_dict)
-        self._db.np.monitor.poller_stats.insert(device_stats)
-        self._db.np.monitor.result_latest.update(dict(DeviceId=device["_id"]),
-                                                 {"$set": dict(DeviceId=device["_id"],
-                                                               PollTimestamp=device_time_start,
-                                                               Time=device_time_end-device_time_start,
-                                                               Results=probe_result_dict)}, upsert=True)
+                            Time=device_time_end - device_time_start, Results=probe_stats_dict)
+        self._db.np.monitor.poll.update(dict(_id=poll_record_id), {"$set": device_stats})
+        self._db.np.monitor.result_last.update(dict(DeviceId=device["_id"]),
+                                               {"$set": dict(DeviceId=device["_id"],
+                                                             PollId=poll_record_id,
+                                                             Time=device_time_end - device_time_start,
+                                                             Results=probe_result_dict)}, upsert=True)
 
 
 class PollingPlanner(threading.Thread):
     _config = None
     _db = None
     _default_poll_interval = None
-    _default_probes = []
+    _default_probes = {}
     _poll_queue = None
     _logger = logging.getLogger("planner")
 
@@ -144,7 +145,7 @@ class PollingPlanner(threading.Thread):
         default_probes_string = self._config.get("monitor", "default-probes")
         default_probes_list = default_probes_string.split(",")
         for default_probe in default_probes_list:
-            self._default_probes.append({"Probe": default_probe.strip()})
+            self._default_probes[default_probe.strip()] = {}
         self._logger.debug("set default probes %s", self._default_probes)
 
         self._logger.debug("polling planner initialized")
@@ -179,11 +180,11 @@ class PollingPlanner(threading.Thread):
             device_list = self._db.np.core.device.find({"MonitorEnabled": True})
             for device in device_list:
                 device = self.check_device_monitor_config(device)
-                poll_stats_record = self._db.np.monitor.planner_stats.find_one({"DeviceId": device["_id"]})
+                poll_stats_record = self._db.np.monitor.planner.find_one({"DeviceId": device["_id"]})
                 if not poll_stats_record:
-                    self._db.np.monitor.planner_stats.insert(
+                    self._db.np.monitor.planner.insert(
                         dict(DeviceId=device["_id"], LastEnqueueTimestamp=time.time() - 3600))
-                    poll_stats_record = self._db.np.monitor.planner_stats.find_one(dict(DeviceId=device["_id"]))
+                    poll_stats_record = self._db.np.monitor.planner.find_one(dict(DeviceId=device["_id"]))
 
                 delta = (time.time() - poll_stats_record["LastEnqueueTimestamp"]) * 1000
                 if delta >= device["MonitorConfiguration"]["PollInterval"]:
@@ -191,7 +192,7 @@ class PollingPlanner(threading.Thread):
                                        device['_id'],
                                        device['Hostname'], delta)
                     self._poll_queue.put(device)
-                    self._db.np.monitor.planner_stats.update(dict(DeviceId=device["_id"]),
-                                                             {"$set": {"LastEnqueueTimestamp": time.time()}})
+                    self._db.np.monitor.planner.update(dict(DeviceId=device["_id"]),
+                                                       {"$set": {"LastEnqueueTimestamp": time.time()}})
 
             time.sleep(NetPadConstants.MONITOR_PLANNER_SLEEP_TIME)

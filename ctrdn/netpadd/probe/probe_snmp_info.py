@@ -1,9 +1,5 @@
 import json
-import pprint
-import StringIO
 from pysnmp.entity.rfc3413.oneliner import cmdgen
-from pysnmp.entity.rfc3413.oneliner.mibvar import MibVariable
-from pysnmp.proto.rfc1155 import ObjectName
 import time
 from ctrdn.netpadd.monitor import DeviceProbe, DevicePollerException
 
@@ -29,8 +25,8 @@ class Probe(DeviceProbe):
         self._default_snmp_version = self._config.get("probe_snmp_info", "default-snmp-version")
         self._default_snmp_info_dict = json.loads(self._config.get("probe_snmp_info", "default-snmp-info-dictionary"))
 
-    def poll_device(self, device, probe_config):
-        probe_config = self._check_configuration(device, probe_config)
+    def poll_device(self, device, probe_name, probe_config):
+        probe_config = self._check_configuration(device, probe_name, probe_config)
         probe_successful = False
         probe_address_index = 0
         if len(device["IpAddress"]) < 1:
@@ -38,6 +34,7 @@ class Probe(DeviceProbe):
 
         snmp_data = None
         start_time = time.time()
+        snmp_error = None
         while not probe_successful:
             if probe_address_index >= len(device["IpAddress"]):
                 self._logger.error("failed to get snmp information from device %s, after trying all addresses",
@@ -86,7 +83,7 @@ class Probe(DeviceProbe):
         result_dict = dict(Time=end_time-start_time)
         if snmp_data is None:
             result_dict["Success"] = False
-            result_dict["LastError"] = "%s" % snmp_error
+            result_dict["LastError"] = str(snmp_error)
             self._logger.warn("failed to get snmp info, device=%s, time=%f", device["_id"], (end_time-start_time))
         else:
             result_dict["Success"] = True
@@ -95,7 +92,7 @@ class Probe(DeviceProbe):
                                (end_time-start_time))
         return result_dict
 
-    def _check_configuration(self, device, probe_config):
+    def _check_configuration(self, device, probe_name, probe_config):
         update_config = False
         if not "SnmpVersion" in probe_config:
             self._logger.warn("no SnmpVersion in probe configuration for device %s", device["_id"])
@@ -117,7 +114,7 @@ class Probe(DeviceProbe):
         if update_config is True:
             monitor_config = device["MonitorConfiguration"]
             for probe_index, probe in enumerate(monitor_config["Probes"]):
-                if probe["Probe"] == probe_config["Probe"]:
+                if probe_index == probe_name:
                     monitor_config["Probes"][probe_index] = probe_config
                     break
             self._db.np.core.device.update(dict(_id=device["_id"]), {"$set": dict(MonitorConfiguration=monitor_config)})
