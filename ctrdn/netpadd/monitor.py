@@ -31,6 +31,7 @@ class DeviceProbe:
     def validate_configuration(self, device, probe_config):
         return True
 
+
 class DevicePoller(threading.Thread):
     _logger = None
     _thread_id = None
@@ -181,13 +182,13 @@ class PollingPlanner(threading.Thread):
             device_list = self._db.np.core.device.find({"MonitorEnabled": True})
             for device in device_list:
                 device = self.check_device_monitor_config(device)
-                poll_stats_record = self._db.np.monitor.planner.find_one({"DeviceId": device["_id"]})
-                if not poll_stats_record:
+                planner_record = self._db.np.monitor.planner.find_one({"DeviceId": device["_id"]})
+                if not planner_record:
                     self._db.np.monitor.planner.insert(
                         dict(DeviceId=device["_id"], LastEnqueueTimestamp=time.time() - 3600))
-                    poll_stats_record = self._db.np.monitor.planner.find_one(dict(DeviceId=device["_id"]))
+                    planner_record = self._db.np.monitor.planner.find_one(dict(DeviceId=device["_id"]))
 
-                delta = (time.time() - poll_stats_record["LastEnqueueTimestamp"]) * 1000
+                delta = (time.time() - planner_record["LastEnqueueTimestamp"]) * 1000
                 if delta >= device["MonitorConfiguration"]["PollInterval"]:
                     self._logger.debug("enqueuing device %s(%s), delta=%dms",
                                        device['_id'],
