@@ -123,7 +123,7 @@ def get_probe_name():
 
 
 def get_probe_description():
-    return "SNMP Basic Information"
+    return "SNMP Information Fetcher"
 
 
 def get_probe_version():
