@@ -12,6 +12,7 @@ class Probe(DeviceProbe):
     _default_snmp_version = None
     _default_snmp_info_dict = None
     _default_snmp_table_dict = None
+    _bulk_command_size = None
 
     def __init__(self, config, db):
         DeviceProbe.__init__(self, config, db, "probe-snmp-info")
@@ -23,12 +24,14 @@ class Probe(DeviceProbe):
         configured"
         assert self._config.get("probe_snmp_info", "default-snmp-table-dictionary"), "no default snmp table dictionary \
         configured"
+        assert self._config.get("probe_snmp_info", "bulk-command-size"), "no bulk command size configured"
 
         self._default_snmp_port = self._config.getint("probe_snmp_info", "default-snmp-port")
         self._default_snmp_community = self._config.get("probe_snmp_info", "default-snmp-community")
         self._default_snmp_version = self._config.get("probe_snmp_info", "default-snmp-version")
         self._default_snmp_info_dict = json.loads(self._config.get("probe_snmp_info", "default-snmp-info-dictionary"))
         self._default_snmp_table_dict = json.loads(self._config.get("probe_snmp_info", "default-snmp-table-dictionary"))
+        self._bulk_command_size = self._config.getint("probe_snmp_info", "bulk-command-size")
 
     def poll_device(self, device, probe_name, probe_config):
         probe_successful = False
@@ -65,7 +68,7 @@ class Probe(DeviceProbe):
 
             # attempt to fetch tables
             if probe_successful is True:
-                tables_result = self._probe_tables(probe_config, address_record)
+                tables_result = self._probe_tables(device, probe_config, address_record)
                 tables_probe_successful = True if tables_result["Status"] == 1 else False
                 if tables_probe_successful is False:
                     snmp_error = tables_result["Error"]
@@ -92,12 +95,13 @@ class Probe(DeviceProbe):
                 self._logger.warning("failed to get snmp tables data for device=%s", device["_id"])
         return result_dict
 
-    def _probe_tables(self, probe_config, address_record):
+    def _probe_tables(self, device, probe_config, address_record):
         table_result = {}
         for table_name, table_config in probe_config["SnmpTableDictionary"].iteritems():
             table = self._probe_single_table(table_config, probe_config, address_record)
             if table["Status"] == 0:
-                return dict(Status=0, Error=table_result[table_name]["Error"])
+                self._logger.warn("failed to get snmp table %s from device %s", table_name, device["_id"])
+                self._logger.warn("snmp tables error: %s", table["Error"])
             else:
                 table_result[table_name] = table["Data"]
         return dict(Status=1, Data=table_result)
@@ -126,7 +130,7 @@ class Probe(DeviceProbe):
             snmp_err_indication, snmp_err_status, snmp_err_index, snmp_var_binds = cmd_generator.bulkCmd(
                 cmdgen.CommunityData(probe_config["SnmpCommunity"]),
                 cmdgen.UdpTransportTarget((address_record["Address"], probe_config["SnmpPort"])),
-                0, 10,
+                0, self._bulk_command_size,
                 last_oid)
 
             if snmp_err_indication:
@@ -138,6 +142,8 @@ class Probe(DeviceProbe):
                                  snmp_err_index and snmp_var_binds[-1][int(snmp_err_index) - 1] or '?')
                     break
                 else:
+                    if len(snmp_var_binds) == 0:
+                        break
                     for oid_tuple in snmp_var_binds:
                         oid = oid_tuple[0][0]
                         oid_string = str(oid.prettyOut(oid))
@@ -151,12 +157,14 @@ class Probe(DeviceProbe):
                         column_id = int(oid_string[len(base_oid)+1:oid_string.find(".", len(base_oid)+1)])
                         item_id = oid_string[oid_string.find(".", len(base_oid)+1)+1:]
                         if not column_id in oid_column_map:
-                            break
+                            continue
                         if not item_id in snmpid_table_map:
                             table_data.append({oid_column_map[column_id]: value})
                             snmpid_table_map[item_id] = len(table_data)-1
                         else:
                             table_data[snmpid_table_map[item_id]][oid_column_map[column_id]] = value
+                    if len(snmp_var_binds) < self._bulk_command_size:
+                        probe_done = True
 
             if not snmp_error is None:
                 self._logger.error("snmp tables error: %s", snmp_error)
