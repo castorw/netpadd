@@ -12,6 +12,8 @@ related template integration.
 ```json
 /* MikroTik RouterOS Wireless Registration Table (reduced) */
 {
+    "_id" : "rosWirelessReg",
+    "BaseOid" : "1.3.6.1.4.1.14988.1.1.1.2.1",
     "Columns" : {
         "hardwareAddress" : 1,
         "snr" : 12,
@@ -22,14 +24,13 @@ related template integration.
         "rxBytes" : 5,
         "txPackets" : 6,
         "rxPackets" : 7
-    },
-    "BaseOid" : "1.3.6.1.4.1.14988.1.1.1.2.1",
-    "_id" : "rosWirelessReg"
+    }
 }
 
 /* SNMP Interface Table (reduced) */
 {
     "_id" : "ifTableReduced",
+    "BaseOid" : "1.3.6.1.2.1.2.2.1",
     "Columns" : {
         "ifSpeed" : 5,
         "ifType" : 3,
@@ -42,8 +43,7 @@ related template integration.
         "ifIndex" : 1,
         "ifMtu" : 4,
         "ifOperStatus" : 8
-    },
-    "BaseOid" : "1.3.6.1.2.1.2.2.1"
+    }
 }
 
 /* SNMP IP Route List (reduced) */
@@ -84,3 +84,4 @@ a JSON-like object as above. For example:
     }
 }
 ```
+* In case you wanted to add this table template to the templates collection __ns.snmp.tpl.table__, you need add the \_id attribute with the table name, so in this case it would be according to SNMP MIB specification __ipAddrTableEntry__ or __ipAddrTable__ _(depending on your preference)_
