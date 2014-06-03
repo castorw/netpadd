@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from datetime import datetime
 import logging
 import threading
 from ConfigParser import ConfigParser
@@ -114,7 +115,8 @@ class DevicePoller(threading.Thread):
 
         device_time_end = time.time()
         device_poll_result = dict(DeviceId=device["_id"], PollerThreadId=self._thread_id,
-                                  PollTimestamp=device_time_start, ExecutionTime=device_time_end - device_time_start,
+                                  PollTimestamp=datetime.utcfromtimestamp(device_time_start),
+                                  ExecutionTime=device_time_end - device_time_start,
                                   ProbeResult=probe_stats_dict)
         self._db.np.monitor.poll.insert(device_poll_result)
 
@@ -184,18 +186,19 @@ class PollingPlanner(threading.Thread):
             for device in device_list:
                 device = self.check_device_monitor_config(device)
                 planner_record = self._db.np.monitor.planner.find_one({"DeviceId": device["_id"]})
+                force_enqueue = False
                 if not planner_record:
                     record_id = self._db.np.monitor.planner.insert(
-                        dict(DeviceId=device["_id"], LastEnqueueTimestamp=time.time() - 3600))
+                        dict(DeviceId=device["_id"], LastEnqueueTimestamp=datetime.utcnow()))
                     planner_record = self._db.np.monitor.planner.find_one(dict(_id=record_id))
-
-                delta = (time.time() - planner_record["LastEnqueueTimestamp"]) * 1000
-                if delta >= device["MonitorConfiguration"]["PollInterval"]:
-                    self._logger.debug("enqueuing device %s(%s), delta=%dms",
+                    force_enqueue = True
+                delta = datetime.utcnow() - planner_record["LastEnqueueTimestamp"]
+                if force_enqueue is True or delta.total_seconds() >= device["MonitorConfiguration"]["PollInterval"]:
+                    self._logger.debug("enqueuing device %s(%s), delta=%ds",
                                        device['_id'],
-                                       device['Hostname'], delta)
+                                       device['Hostname'], delta.total_seconds())
                     self._poll_queue.put(device["_id"])
                     self._db.np.monitor.planner.update(dict(DeviceId=device["_id"]),
-                                                       {"$set": {"LastEnqueueTimestamp": time.time()}})
+                                                       {"$set": {"LastEnqueueTimestamp": datetime.utcnow()}})
 
             time.sleep(NetPadConstants.MONITOR_PLANNER_SLEEP_TIME)

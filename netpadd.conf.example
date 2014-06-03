@@ -47,8 +47,8 @@ threads: 5
 # maximum size of polling request queue (higher value may be required for more devices)
 queue-max-size: 128
 
-# default polling interval for device (if device does not have this value configured)
-default-poll-interval: 60000
+# default polling interval for device in seconds (if device does not have this value configured)
+default-poll-interval: 120
 
 # path to probes (do not modify unless you wan to use customized probes)
 probe-path: ctrdn/netpadd/probe
