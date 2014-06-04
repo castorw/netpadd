@@ -100,3 +100,6 @@ default-snmp-table-dictionary: { "ifTable": { "BaseOid": "1.3.6.1.2.1.2.2.1", "C
 # higher values are better as they produce less network communication and can reduce overall polling time
 # application may crash with very high numbers (suggested value: 10-25)
 bulk-command-size: 10
+
+# enables detailed snmp debugging
+snmp-debug: false

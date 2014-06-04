@@ -1,3 +1,4 @@
+from ConfigParser import NoOptionError
 import json
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 import time
@@ -13,6 +14,7 @@ class Probe(DeviceProbe):
     _default_snmp_info_dict = None
     _default_snmp_table_dict = None
     _bulk_command_size = None
+    _snmp_debug_enabled = False
 
     def __init__(self, config, db):
         DeviceProbe.__init__(self, config, db, "probe-snmp-info")
@@ -32,6 +34,18 @@ class Probe(DeviceProbe):
         self._default_snmp_info_dict = json.loads(self._config.get("probe_snmp_info", "default-snmp-info-dictionary"))
         self._default_snmp_table_dict = json.loads(self._config.get("probe_snmp_info", "default-snmp-table-dictionary"))
         self._bulk_command_size = self._config.getint("probe_snmp_info", "bulk-command-size")
+
+        try:
+            self._snmp_debug_enabled = self._config.getboolean("probe_snmp_info", "snmp-debug")
+        except NoOptionError:
+            self._logger.debug("no snmp-debug option in configuration")
+
+        if self._snmp_debug_enabled is True:
+            self._logger.debug("snmp debugging is enabled")
+
+    def _snmp_debug(self, message):
+        if self._snmp_debug_enabled is True:
+            self._logger.debug("[snmp debug] %s", message)
 
     def poll_device(self, device, probe_name, probe_config):
         probe_successful = False
@@ -122,10 +136,12 @@ class Probe(DeviceProbe):
             oid_column_map[col_oid] = col_name
         last_oid = base_oid + "." + str(lowest_oid)
 
-        probe_done = False
+        self._snmp_debug("processing table with oid base {}".format(base_oid))
 
+        probe_done = False
         snmp_error = None
         while not probe_done:
+            self._snmp_debug("requesting {} items with oid {}".format(self._bulk_command_size, last_oid))
             last_oid = last_oid.encode('ascii', 'ignore')
             snmp_err_indication, snmp_err_status, snmp_err_index, snmp_var_binds = cmd_generator.bulkCmd(
                 cmdgen.CommunityData(probe_config["SnmpCommunity"]),
@@ -142,6 +158,8 @@ class Probe(DeviceProbe):
                                  snmp_err_index and snmp_var_binds[-1][int(snmp_err_index) - 1] or '?')
                     break
                 else:
+                    self._snmp_debug("received {}/{} bindings for oid {}".format(len(snmp_var_binds),
+                                                                                 self._bulk_command_size, last_oid))
                     if len(snmp_var_binds) == 0:
                         break
                     for oid_tuple in snmp_var_binds:
