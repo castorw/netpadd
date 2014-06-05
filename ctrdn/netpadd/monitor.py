@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from datetime import datetime
 import logging
+import os
 import threading
 from ConfigParser import ConfigParser
 from Queue import Queue
@@ -62,7 +63,12 @@ class DevicePoller(threading.Thread):
         assert 0 <= self._thread_id < NetPadConstants.MONITOR_MAX_POLLER_THREADS, "invalid thread id"
 
     def run(self):
-        self._logger.debug("started device poller thread, id=%d", self._thread_id)
+        pid = os.fork()
+        if pid == 0:
+            self._logger.debug("started device poller thread, id=%d", self._thread_id)
+        else:
+            logging.getLogger("threading").debug("started device poller thread, pid=%d", pid)
+
         got_task = False
         while True:
             while not self._poll_queue.empty():
