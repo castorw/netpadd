@@ -143,11 +143,10 @@ class Probe(DeviceProbe):
         while not probe_done:
             self._snmp_debug("requesting {} items with oid {}".format(self._bulk_command_size, last_oid))
             last_oid = last_oid.encode('ascii', 'ignore')
-            snmp_err_indication, snmp_err_status, snmp_err_index, snmp_var_binds = cmd_generator.bulkCmd(
+            snmp_err_indication, snmp_err_status, snmp_err_index, snmp_var_binds = cmd_generator.nextCmd(
                 cmdgen.CommunityData(probe_config["SnmpCommunity"]),
                 cmdgen.UdpTransportTarget((address_record["Address"], probe_config["SnmpPort"])),
-                0, self._bulk_command_size,
-                last_oid)
+                last_oid, lexicographicMode=True, maxRows=self._bulk_command_size, ignoreNonIncreasingOid=True)
 
             if snmp_err_indication:
                 snmp_error = str(snmp_err_indication)
@@ -167,7 +166,9 @@ class Probe(DeviceProbe):
                         oid_string = str(oid.prettyOut(oid))
                         value = oid_tuple[0][1]
                         value = value.prettyOut(value)
+                        self._snmp_debug("processing incoming oid {}".format(oid_string))
                         if not oid_string.startswith(base_oid):
+                            self._snmp_debug("out-of-sequence oid received {}, finishing up".format(oid_string))
                             probe_done = True
                             break
                         last_oid = oid_string
