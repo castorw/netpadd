@@ -95,16 +95,16 @@ class Probe(DeviceProbe):
         if probe_successful is False:
             result_dict["Status"] = 0
             result_dict["Error"] = dict(Id="SNMP_ERROR", Message=str(snmp_error))
-            self._logger.warn("failed to get snmp info, device=%s, time=%f", device["_id"], (end_time-start_time))
+            self._logger.warn("failed to get snmp info, device=%s, time=%f", device["_id"], (end_time - start_time))
         else:
             result_dict["Status"] = 1
             result_dict["SnmpInfoData"] = info_result["Data"]
             self._logger.debug("processed snmp info, device=%s, count=%d, time=%f",
-                               device["_id"], len(info_result["Data"]), (end_time-start_time))
+                               device["_id"], len(info_result["Data"]), (end_time - start_time))
             if tables_probe_successful is True:
                 result_dict["SnmpTableData"] = tables_result["Data"]
                 self._logger.debug("processed snmp tables, device=%s, count=%d, time=%f",
-                                   device["_id"], len(tables_result["Data"]), (end_time-start_time))
+                                   device["_id"], len(tables_result["Data"]), (end_time - start_time))
             else:
                 self._logger.warning("failed to get snmp tables data for device=%s", device["_id"])
         return result_dict
@@ -123,18 +123,49 @@ class Probe(DeviceProbe):
     def _probe_single_table(self, table_config, probe_config, address_record):
         cmd_generator = cmdgen.CommandGenerator()
         base_oid = table_config["BaseOid"]
-        table_data = []
         snmpid_table_map = {}
         oid_column_map = {}
         lowest_oid = None
         highest_oid = None
-        for col_name, col_oid in table_config["Columns"].iteritems():
-            if lowest_oid is None or lowest_oid > col_oid:
-                lowest_oid = col_oid
-            if highest_oid is None or highest_oid < col_oid:
-                highest_oid = col_oid
-            oid_column_map[col_oid] = col_name
-        last_oid = base_oid + "." + str(lowest_oid)
+
+        col_name_mode = "manual-multi-level"
+        asl_prefix = ""
+        asl_style = "list"
+
+        if not "ColumnNameMode" in table_config:
+            self._logger.info("no ColumnNameMode specified, assuming manual-multi-level")
+        elif table_config["ColumnNameMode"] == "auto-single-level" or \
+                        table_config["ColumnNameMode"] == "manual-multi-level":
+            col_name_mode = table_config["ColumnNameMode"]
+
+        if col_name_mode == "manual-multi-level":
+            table_data = []
+            for col_name, col_oid in table_config["Columns"].iteritems():
+                if lowest_oid is None or lowest_oid > col_oid:
+                    lowest_oid = col_oid
+                if highest_oid is None or highest_oid < col_oid:
+                    highest_oid = col_oid
+                oid_column_map[col_oid] = col_name
+            last_oid = base_oid + "." + str(lowest_oid)
+        elif col_name_mode == "auto-single-level":
+            if "ColumnNamePrefix" in table_config:
+                asl_prefix = table_config["ColumnNamePrefix"]
+            else:
+                self._logger.debug("no prefix for auto-single-level mode, assuming none")
+
+            if not "SingleLevelTableStyle" in table_config:
+                self._logger.debug("no prefix for auto-single-level mode, assuming list")
+            elif table_config["SingleLevelTableStyle"] == "list" or table_config["SingleLevelTableStyle"] == "dict":
+                asl_style = table_config["SingleLevelTableStyle"]
+
+            if asl_style == "dict":
+                table_data = {}
+            else:
+                table_data = []
+
+            last_oid = base_oid
+        else:
+            return dict(Status=0, Error="Invalid configuration - INVALID_COLUMN_NAME_MODE")
 
         self._snmp_debug("processing table with oid base {}".format(base_oid))
 
@@ -154,7 +185,8 @@ class Probe(DeviceProbe):
             else:
                 if snmp_err_status:
                     snmp_error = 'snmp error: %s at %s' % (snmp_err_status.prettyPrint(),
-                                 snmp_err_index and snmp_var_binds[-1][int(snmp_err_index) - 1] or '?')
+                                                           snmp_err_index and snmp_var_binds[-1][
+                                                               int(snmp_err_index) - 1] or '?')
                     break
                 else:
                     self._snmp_debug("received {}/{} bindings for oid {}".format(len(snmp_var_binds),
@@ -173,15 +205,29 @@ class Probe(DeviceProbe):
                             break
                         last_oid = oid_string
                         """:type : str"""
-                        column_id = int(oid_string[len(base_oid)+1:oid_string.find(".", len(base_oid)+1)])
-                        item_id = oid_string[oid_string.find(".", len(base_oid)+1)+1:]
-                        if not column_id in oid_column_map:
-                            continue
-                        if not item_id in snmpid_table_map:
-                            table_data.append({oid_column_map[column_id]: value})
-                            snmpid_table_map[item_id] = len(table_data)-1
-                        else:
-                            table_data[snmpid_table_map[item_id]][oid_column_map[column_id]] = value
+                        if col_name_mode == "manual-multi-level":
+                            column_id = int(oid_string[len(base_oid) + 1:oid_string.find(".", len(base_oid) + 1)])
+                            item_id = oid_string[oid_string.find(".", len(base_oid) + 1) + 1:]
+                            if not column_id in oid_column_map:
+                                continue
+                            if not item_id in snmpid_table_map:
+                                table_data.append({oid_column_map[column_id]: value})
+                                snmpid_table_map[item_id] = len(table_data) - 1
+                            else:
+                                table_data[snmpid_table_map[item_id]][oid_column_map[column_id]] = value
+                        elif col_name_mode == "auto-single-level":
+                            try:
+                                item_id = int(oid_string[len(base_oid) + 1:])
+                            except ValueError:
+                                self._logger.error("not a valid single level structure for oid %s with base %s",
+                                                   oid_string, base_oid)
+                                continue
+                            item_name = "{}{}".format(asl_prefix, item_id)
+                            if asl_style == "dict":
+                                table_data[item_name] = value
+                            else:
+                                table_data.append(dict(Name=item_name, Value=value))
+
                     if len(snmp_var_binds) < self._bulk_command_size:
                         probe_done = True
 
@@ -216,7 +262,8 @@ class Probe(DeviceProbe):
         else:
             if snmp_err_status:
                 snmp_error = 'snmp error: %s at %s' % (snmp_err_status.prettyPrint(),
-                             snmp_err_index and snmp_var_binds[-1][int(snmp_err_index) - 1] or '?')
+                                                       snmp_err_index and snmp_var_binds[-1][
+                                                           int(snmp_err_index) - 1] or '?')
             else:
                 snmp_data = {}
                 for oid, value in snmp_var_binds:
