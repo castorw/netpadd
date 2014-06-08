@@ -11,6 +11,9 @@
       <w>poller</w>
       <w>pymongo</w>
       <w>snmp</w>
+      <w>sqlalchemy</w>
+      <w>sqlite</w>
+      <w>tablename</w>
     </words>
   </dictionary>
 </component>

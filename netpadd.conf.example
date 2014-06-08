@@ -14,27 +14,7 @@ level: DEBUG
 # database configuration section
 # ------------------------------
 [database]
-
-# driver (currently only pymongo is supported)
-driver: pymongo
-
-# database host (hostname or ip address of remote or local database server)
-host: 127.0.0.1
-
-# database port (port used by database system to communicate with clients)
-port: 27017
-
-# MongoDB target schema (database)
-mongodb-schema: netpad
-
-# MongoDB authentication required (set to true, if your MongoDB server requires authentication)
-mongodb-auth: false
-
-# MongoDB authentication username (uncomment and set value if authentication is needed)
-#mongodb-auth-user:
-
-# MongoDB authentication password (uncomment and set value if authentication is needed)
-#mongodb-auth-password:
+#TODO: update
 
 # -----------------------------
 # monitor configuration section

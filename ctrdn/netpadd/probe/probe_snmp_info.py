@@ -2,9 +2,19 @@ from ConfigParser import NoOptionError
 import json
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 import time
+import sqlalchemy
+from ctrdn.netpadd import database
 from ctrdn.netpadd.monitor import DeviceProbe
 
 __author__ = 'Lubomir Kaplan <castor@castor.sk>'
+
+
+class SnmpInfoTemplate(database.DeclarativeBase):
+    __tablename__ = "np_snmp_template"
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    type = sqlalchemy.Column(sqlalchemy.Enum("infolist", "table"), nullable=False, server_default="infolist")
+    name = sqlalchemy.Column(sqlalchemy.String(255), nullable=False)
+    template_json = sqlalchemy.Column(sqlalchemy.Text, nullable=False)
 
 
 class Probe(DeviceProbe):
@@ -16,8 +26,8 @@ class Probe(DeviceProbe):
     _bulk_command_size = None
     _snmp_debug_enabled = False
 
-    def __init__(self, config, db):
-        DeviceProbe.__init__(self, config, db, "probe-snmp-info")
+    def __init__(self, config):
+        DeviceProbe.__init__(self, config, "probe-snmp-info")
 
         assert self._config.get("probe_snmp_info", "default-snmp-port"), "no default snmp port configured"
         assert self._config.get("probe_snmp_info", "default-snmp-community"), "no default snmp community configured"
@@ -47,7 +57,7 @@ class Probe(DeviceProbe):
         if self._snmp_debug_enabled is True:
             self._logger.debug("[snmp debug] %s", message)
 
-    def poll_device(self, device, probe_name, probe_config):
+    def poll_device(self, db_session, poll_record, device, probe_name, probe_config):
         probe_successful = False
         tables_probe_successful = False
         info_result = None
@@ -277,17 +287,18 @@ class Probe(DeviceProbe):
     def validate_configuration(self, device, probe_config):
         update_config = False
         if not "SnmpVersion" in probe_config:
-            self._logger.warn("no SnmpVersion in probe configuration for device %s", device["_id"])
+            self._logger.warn("no SnmpVersion in probe configuration for device %s", device.id)
             probe_config["SnmpVersion"] = self._default_snmp_version
             update_config = True
         if not "SnmpCommunity" in probe_config:
-            self._logger.warn("no SnmpCommunity in probe configuration for device %s", device["_id"])
+            self._logger.warn("no SnmpCommunity in probe configuration for device %s", device.id)
             probe_config["SnmpCommunity"] = self._default_snmp_community
             update_config = True
         if not "SnmpPort" in probe_config:
-            self._logger.warn("no SnmpPort in probe configuration for device %s", device["_id"])
+            self._logger.warn("no SnmpPort in probe configuration for device %s", device.id)
             probe_config["SnmpPort"] = self._default_snmp_port
             update_config = True
+        """
         if not "SnmpInfoDictionary" in probe_config:
             self._logger.warn("no SnmpInfoDictionary in probe configuration for device %s", device["_id"])
             probe_config["SnmpInfoDictionary"] = self._default_snmp_info_dict
@@ -296,9 +307,10 @@ class Probe(DeviceProbe):
             self._logger.warn("no SnmpTableDictionary in probe configuration for device %s", device["_id"])
             probe_config["SnmpTableDictionary"] = self._default_snmp_table_dict
             update_config = True
+        """
 
         if update_config is True:
-            self._logger.warning("fixed snmp_info probe configuration for device %s", device["_id"])
+            self._logger.warning("fixed snmp_info probe configuration for device %s", device.id)
             return probe_config
 
         return None
