@@ -101,5 +101,5 @@ default-snmp-table-dictionary: { "ifTable": { "BaseOid": "1.3.6.1.2.1.2.2.1", "C
 # application may crash with very high numbers (suggested value: 10-25)
 bulk-command-size: 10
 
-# enables detailed snmp debugging
+# enables detailed snmp debugging (do not use in production environment, provides lots of logging output)
 snmp-debug: false
